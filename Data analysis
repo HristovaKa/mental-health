@@ -1,0 +1,1153 @@
+## load libraries
+library(foreign)
+library(dplyr)
+library(car)
+
+
+## ----------------------------2008----------------------------------
+econom08 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\econom08.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+family08 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\family08.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+health08 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\health08.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+personality08 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\personality08.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+religion08 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\religion08.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+social08 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\social08.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+work08 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\work08.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+
+## combine the necessary variables from each df into one 'mentalhealth' df 
+##(function?)
+mentalhealth08 <- merge(health08[, c("nomem_encr", "ch08b011", "ch08b012", 
+                  "ch08b013", "ch08b014", "ch08b015")], 
+                  family08[, c("nomem_encr", "cf08a003", "cf08a024", "cf08a030", "cf08a180")],
+                  by="nomem_encr") 
+mentalhealth08 <- merge(mentalhealth08[,], econom08[, c("nomem_encr", "ci08a006", 
+                "ci08a007")], by="nomem_encr")
+mentalhealth08 <- merge(mentalhealth08[,], work08[, c("nomem_encr", "cw08a001", 
+                "cw08a128", "cw08a129", "cw08a130", "cw08a131", "cw08a132", 
+                "cw08a133", "cw08a003")], by="nomem_encr")
+mentalhealth08 <- merge(mentalhealth08[,], personality08[, c(1, 23:85)], by="nomem_encr")
+mentalhealth08 <- merge(mentalhealth08[,], religion08[, c("nomem_encr", "cr08a012")],
+                by="nomem_encr")
+mentalhealth08 <- merge(mentalhealth08[,], social08[, c("nomem_encr", "cs08a001", 
+                "cs08a002", "cs08a283")], by="nomem_encr")
+
+
+## Health 
+## Reverse coding and Computing means
+recode.list_health08 <- c("ch08b013","ch08b015")
+mentalhealth08[recode.list_health08] <- 7 - mentalhealth08[recode.list_health08]  
+
+mentalhealth08$Mental_hlt <- rowMeans(mentalhealth08[, c(2:6)], na.rm = TRUE)
+
+## Age
+## Recode age into intervals
+mentalhealth08$Age <- recode(mentalhealth08$cw08a003, "16:20=1; 21:30=2; 
+                        31:40=3; 41:50=4; 51:60=5; 61:70=6; 71:80=7; 81:90=8;
+                        91:200=9")
+
+## Gender
+mentalhealth08$Gender <- mentalhealth08$cf08a003 
+
+## Marital status
+## based on 024, add 3rd group, that are only in relationship, but not married
+mentalhealth08$Marriage = ifelse(mentalhealth08$cf08a024 == 1 & mentalhealth08$cf08a030 == 1, 1, 
+           ifelse(mentalhealth08$cf08a024 == 1 & mentalhealth08$cf08a030 == 2, 2, 
+                  ifelse(mentalhealth08$cf08a024 == 2, 3, 4)
+           )
+)
+
+## Marital satisfaction
+## based on the previous one add 3rd group, where satisf is not important
+mentalhealth08$Marital_satisf <- ifelse(mentalhealth08$Marriage == 1 & mentalhealth08$cf08a180 <= 10, 
+                           mentalhealth08$cf08a180, 
+            ifelse(mentalhealth08$Marriage == 1 & is.na(mentalhealth08$cf08a180), 99,
+            ifelse(mentalhealth08$Marriage > 1 & is.na(mentalhealth08$cf08a180), 99, 99)))
+
+## Employment
+mentalhealth08$Job <- mentalhealth08$cw08a001 
+
+## Work satisfaction
+mentalhealth08$Job_satisf <- rowMeans(mentalhealth08[, c(14:19)], na.rm = TRUE)
+mentalhealth08$Job_satisf <- round(mentalhealth08$Job_satisf, digits = 2)
+mentalhealth08$Job_satisf <- ifelse(mentalhealth08$Job == 1, mentalhealth08$Job_satisf,
+                           ifelse(is.na(mentalhealth08$Job_satisf), 99, 99))
+
+
+## Economic status satisfacion 
+mentalhealth08$Economic_satisf <- rowMeans(mentalhealth08[, c(11, 12)], na.rm = TRUE)
+
+## Social Integration
+mentalhealth08$Social <- mentalhealth08$cs08a283 
+
+## Leisure time 
+mentalhealth08$Leisure <- rowMeans(mentalhealth08[, c(85, 86)], na.rm = TRUE)
+
+## Religiosity
+mentalhealth08$Religion <- mentalhealth08$cr08a012 
+
+## Personality traits
+## http://ipip.ori.org/New_IPIP-50-item-scale.htm
+recode.list_personality08 <-c("cp08a021", "cp08a023", "cp08a025", "cp08a027",
+                              "cp08a029", "cp08a031", "cp08a033", "cp08a035", "cp08a037", 
+                              "cp08a039", "cp08a041", "cp08a043", "cp08a045", "cp08a047",
+                              "cp08a048", "cp08a049", "cp08a051", "cp08a053", "cp08a055",
+                              "cp08a057", "cp08a058", "cp08a063", "cp08a065", "cp08a068")
+
+mentalhealth08[recode.list_personality08] <- 6 - mentalhealth08[recode.list_personality08] 
+
+mentalhealth08$Extraversion <- rowMeans(mentalhealth08[, c(21,26,31,36,41,46,51,56,
+                                                       61,66)], na.rm = TRUE)
+mentalhealth08$Agreeableness <- rowMeans(mentalhealth08[, c(22,27,32,37,42,47,52,57,
+                                                        62,67)], na.rm = TRUE)
+mentalhealth08$Conscientiousness <- rowMeans(mentalhealth08[, c(23,28,33,38,43,48,53,
+                                                      58,63,68)], na.rm = TRUE)
+mentalhealth08$Emotional_stab <- rowMeans(mentalhealth08[, c(24,29,34,39,44,49,54,59,
+                                                         64,69)], na.rm = TRUE)
+mentalhealth08$Openness <- rowMeans(mentalhealth08[, c(25,30,35,40,45,50,55,60,
+                                                   65,70)], na.rm = TRUE)
+
+## Self-esteem
+recode.list_esteem08 <- c("cp08a072","cp08a074", "cp08a077", "cp08a078", "cp08a079")
+
+mentalhealth08[recode.list_esteem08] <- 8 - mentalhealth08[recode.list_esteem08]  
+
+mentalhealth08$Self_esteem <- rowMeans(mentalhealth08[, c(71:83)], na.rm = TRUE)
+mentalhealth08$Self_esteem <- round(mentalhealth08$Self_esteem, digits = 2)
+
+## deleting unneccessary columns
+mentalhealth08 <- mentalhealth08[, -c(2:87)]
+
+##  creating file
+write.csv(mentalhealth08, file = "mentalhealth08.csv")
+
+
+## ----------------------------2009----------------------------------
+econom09 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\econom09.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+family09 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\family09.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+health09 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\health09.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+personality09 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\personality09.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+religion09 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\religion09.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+social09 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\social09.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+work09 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\work09.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+
+## combine the necessary variables from each df into one 'mentalhealth' df 
+mentalhealth09 <- merge(health09[, c("nomem_encr", "ch09c011", "ch09c012", 
+                                   "ch09c013", "ch09c014", "ch09c015")], 
+                      family09[, c("nomem_encr", "cf09b003", "cf09b024", 
+                      "cf09b030", "cf09b180")], by="nomem_encr") 
+mentalhealth09 <- merge(mentalhealth09[,], econom09[, c("nomem_encr", "ci09b006", 
+                                                    "ci09b007")], by="nomem_encr")
+mentalhealth09 <- merge(mentalhealth09[,], work09[, c("nomem_encr", "cw09b001", 
+                "cw09b128", "cw09b129", "cw09b130", "cw09b131", "cw09b132", 
+                "cw09b133", "cw09b524")], by="nomem_encr")
+mentalhealth09 <- merge(mentalhealth09[,], personality09[, c(1, 23:85)], 
+                        by="nomem_encr")
+mentalhealth09 <- merge(mentalhealth09[,], religion09[, c("nomem_encr", "cr09b012")],
+                      by="nomem_encr")
+mentalhealth09 <- merge(mentalhealth09[,], social09[, c("nomem_encr", "cs09b001", 
+                "cs09b002", "cs09b283")], by="nomem_encr")
+
+## Health 
+## Reverse coding  and Computing means 
+recode.list_health09 <- c("ch09c013","ch09c015")
+mentalhealth09[recode.list_health09] <- 7 - mentalhealth09[recode.list_health09]  
+  
+mentalhealth09$Mental_hlt <- rowMeans(mentalhealth09[, c(2:6)], na.rm = TRUE)
+
+## Age
+## Recode age into intervals
+mentalhealth09$Age <- recode(mentalhealth09$cw09b524, "16:20=1; 21:30=2; 
+                           31:40=3; 41:50=4; 51:60=5; 61:70=6; 71:80=7; 81:90=8;
+                           91:200=9")
+
+## Gender
+mentalhealth09$Gender <- mentalhealth09$cf09b003 
+
+## Marital status
+mentalhealth09$Marriage = ifelse(mentalhealth09$cf09b024 == 1 & mentalhealth09$cf09b030 == 1, 1, 
+                                 ifelse(mentalhealth09$cf09b024 == 1 & mentalhealth09$cf09b030 == 2, 2, 
+                                        ifelse(mentalhealth09$cf09b024 == 2, 3, 4)
+                                 )
+)
+
+## Marital satisfaction
+mentalhealth09$Marital_satisf <- ifelse(mentalhealth09$Marriage == 1 & mentalhealth09$cf09b180 <= 10,
+                                        mentalhealth09$cf09b180, 
+                ifelse(mentalhealth09$Marriage == 1 & is.na(mentalhealth09$cf09b180), 99,
+                ifelse(mentalhealth09$Marriage > 1 & is.na(mentalhealth09$cf09b180), 99, 99)))
+
+## Employment
+mentalhealth09$Job <- mentalhealth09$cw09b001 
+
+## Work satisfaction
+mentalhealth09$Job_satisf <- rowMeans(mentalhealth09[, c(14:19)], na.rm = TRUE)
+mentalhealth09$Job_satisf <- round(mentalhealth09$Job_satisf, digits = 2)
+mentalhealth09$Job_satisf <- ifelse(mentalhealth09$Job == 1, mentalhealth09$Job_satisf,
+                                    ifelse(is.na(mentalhealth09$Job_satisf), 99, 99))
+
+
+## Economic status satisfacion 
+mentalhealth09$Economic_satisf <- rowMeans(mentalhealth09[, c(11, 12)], na.rm = TRUE)
+
+## Social Integration
+mentalhealth09$Social <- mentalhealth09$cs09b283 
+
+## Leisure time 
+mentalhealth09$Leisure <- rowMeans(mentalhealth09[, c(85, 86)], na.rm = TRUE)
+
+## Religiosity
+mentalhealth09$Religion <- mentalhealth09$cr09b012 
+
+## Personality traits
+recode.list_personality09 <-c("cp09b021", "cp09b023", "cp09b025", "cp09b027",
+                "cp09b029", "cp09b031", "cp09b033", "cp09b035", "cp09b037", 
+                "cp09b039", "cp09b041", "cp09b043", "cp09b045", "cp09b047",
+                "cp09b048", "cp09b049", "cp09b051", "cp09b053", "cp09b055",
+                "cp09b057", "cp09b058", "cp09b063", "cp09b065", "cp09b068")
+
+mentalhealth09[recode.list_personality09] <- 6 - mentalhealth09[recode.list_personality09] 
+
+
+mentalhealth09$Extraversion <- rowMeans(mentalhealth09[, c(21,26,31,36,41,46,51,56,
+                                                       61,66)], na.rm = TRUE)
+mentalhealth09$Agreeableness <- rowMeans(mentalhealth09[, c(22,27,32,37,42,47,52,57,
+                                                        62,67)], na.rm = TRUE)
+mentalhealth09$Conscientiousness <- rowMeans(mentalhealth09[, c(23,28,33,38,43,48,53,
+                                                       58,63,68)], na.rm = TRUE)
+mentalhealth09$Emotional_stab <- rowMeans(mentalhealth09[, c(24,29,34,39,44,49,54,59,
+                                                         64,69)], na.rm = TRUE)
+mentalhealth09$Openness <- rowMeans(mentalhealth09[, c(25,30,35,40,45,50,55,60,
+                                                   65,70)], na.rm = TRUE)
+
+## Self-esteem
+recode.list_esteem09 <- c("cp09b072","cp09b074", "cp09b077", "cp09b078", "cp09b079")
+
+mentalhealth09[recode.list_esteem09] <- 8 - mentalhealth09[recode.list_esteem09]  
+
+mentalhealth09$Self_esteem <- rowMeans(mentalhealth09[, c(71:83)], na.rm = TRUE)
+mentalhealth09$Self_esteem <- round(mentalhealth09$Self_esteem, digits = 2)
+
+
+## deleting unneccessary columns
+mentalhealth09 <- mentalhealth09[, -c(2:87)]
+
+##  creating file
+write.csv(mentalhealth09, file = "mentalhealth09.csv")
+
+
+
+## ----------------------------2010----------------------------------
+econom10 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\econom10.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+family10 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\family10.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+health10 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\health10.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+personality10 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\personality10.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+religion10 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\religion10.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+social10 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\social10.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+work10 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\work10.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+
+## combine the necessary variables from each df into one 'mentalhealth' df 
+mentalhealth10 <- merge(health10[, c("nomem_encr", "ch10d011", "ch10d012", 
+                                     "ch10d013", "ch10d014", "ch10d015")], 
+                        family10[, c("nomem_encr", "cf10c003", "cf10c024", 
+                        "cf10c030", "cf10c180")], by="nomem_encr") 
+mentalhealth10 <- merge(mentalhealth10[,], econom10[, c("nomem_encr", "ci10c006", 
+                                                   "ci10c007")], by="nomem_encr")
+mentalhealth10 <- merge(mentalhealth10[,], work10[, c("nomem_encr", "cw10c001", 
+                        "cw10c128", "cw10c129", "cw10c130", "cw10c131", "cw10c132", 
+                        "cw10c133", "cw10c003")], by="nomem_encr")
+mentalhealth10 <- merge(mentalhealth10[,], personality10[, c(1, 24:86)], 
+                        by="nomem_encr")
+mentalhealth10 <- merge(mentalhealth10[,], religion10[, c("nomem_encr", "cr10c012")],
+                        by="nomem_encr")
+mentalhealth10 <- merge(mentalhealth10[,], social10[, c("nomem_encr", "cs10c001", 
+                                                        "cs10c002", "cs10c283")], by="nomem_encr")
+
+## Health 
+## Reverse coding  and Computing means 
+recode.list_health10 <- c("ch10d013","ch10d015")
+mentalhealth10[recode.list_health10] <- 7 - mentalhealth10[recode.list_health10]  
+
+mentalhealth10$Mental_hlt <- rowMeans(mentalhealth10[, c(2:6)], na.rm = TRUE)
+
+## Age
+## Recode age into intervals
+mentalhealth10$Age <- recode(mentalhealth10$cw10c003, "16:20=1; 21:30=2; 
+                             31:40=3; 41:50=4; 51:60=5; 61:70=6; 71:80=7; 81:90=8;
+                             91:200=9")
+
+## Gender
+mentalhealth10$Gender <- mentalhealth10$cf10c003 
+
+## Marital status
+mentalhealth10$Marriage = ifelse(mentalhealth10$cf10c024 == 1 & mentalhealth10$cf10c030 == 1, 1, 
+                                 ifelse(mentalhealth10$cf10c024 == 1 & mentalhealth10$cf10c030 == 2, 2, 
+                                        ifelse(mentalhealth10$cf10c024 == 2, 3, 4)
+                                 )
+)
+
+## Marital satisfaction
+mentalhealth10$Marital_satisf <- ifelse(mentalhealth10$Marriage == 1 & mentalhealth10$cf10c180 <= 10,
+                                        mentalhealth10$cf10c180, 
+                       ifelse(mentalhealth10$Marriage == 1 & is.na(mentalhealth10$cf10c180), 99,
+                       ifelse(mentalhealth10$Marriage > 1 & is.na(mentalhealth10$cf10c180), 99, 99)))
+
+
+## Employment
+mentalhealth10$Job <- mentalhealth10$cw10c001 
+
+## Work satisfaction
+mentalhealth10$Job_satisf <- rowMeans(mentalhealth10[, c(14:19)], na.rm = TRUE)
+mentalhealth10$Job_satisf <- round(mentalhealth10$Job_satisf, digits = 2)
+mentalhealth10$Job_satisf <- ifelse(mentalhealth10$Job == 1, mentalhealth10$Job_satisf,
+                                    ifelse(is.na(mentalhealth10$Job_satisf), 99, 99))
+
+
+## Economic status satisfacion 
+mentalhealth10$Economic_satisf <- rowMeans(mentalhealth10[, c(11, 12)], na.rm = TRUE)
+
+## Social Integration
+mentalhealth10$Social <- mentalhealth10$cs10c283 
+
+## Leisure time 
+mentalhealth10$Leisure <- rowMeans(mentalhealth10[, c(85, 86)], na.rm = TRUE)
+
+## Religiosity
+mentalhealth10$Religion <- mentalhealth10$cr10c012 
+
+## Personality traits
+recode.list_personality10 <-c("cp10c021", "cp10c023", "cp10c025", "cp10c027",
+                              "cp10c029", "cp10c031", "cp10c033", "cp10c035", "cp10c037", 
+                              "cp10c039", "cp10c041", "cp10c043", "cp10c045", "cp10c047",
+                              "cp10c048", "cp10c049", "cp10c051", "cp10c053", "cp10c055",
+                              "cp10c057", "cp10c058", "cp10c063", "cp10c065", "cp10c068")
+
+mentalhealth10[recode.list_personality10] <- 6 - mentalhealth10[recode.list_personality10] 
+
+
+mentalhealth10$Extraversion <- rowMeans(mentalhealth10[, c(21,26,31,36,41,46,51,56,
+                                                           61,66)], na.rm = TRUE)
+mentalhealth10$Agreeableness <- rowMeans(mentalhealth10[, c(22,27,32,37,42,47,52,57,
+                                                            62,67)], na.rm = TRUE)
+mentalhealth10$Conscientiousness <- rowMeans(mentalhealth10[, c(23,28,33,38,43,48,53,
+                                                                58,63,68)], na.rm = TRUE)
+mentalhealth10$Emotional_stab <- rowMeans(mentalhealth10[, c(24,29,34,39,44,49,54,59,
+                                                             64,69)], na.rm = TRUE)
+mentalhealth10$Openness <- rowMeans(mentalhealth10[, c(25,30,35,40,45,50,55,60,
+                                                       65,70)], na.rm = TRUE)
+
+## Self-esteem
+recode.list_esteem10 <- c("cp10c072","cp10c074", "cp10c077", "cp10c078", "cp10c079")
+
+mentalhealth10[recode.list_esteem10] <- 8 - mentalhealth10[recode.list_esteem10]  
+
+mentalhealth10$Self_esteem <- rowMeans(mentalhealth10[, c(71:83)], na.rm = TRUE)
+mentalhealth10$Self_esteem <- round(mentalhealth10$Self_esteem, digits = 2)
+
+
+## deleting unneccessary columns
+mentalhealth10 <- mentalhealth10[, -c(2:87)]
+
+##  creating file
+write.csv(mentalhealth10, file = "mentalhealth10.csv")
+
+
+
+## ----------------------------2011----------------------------------
+econom11 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\econom11.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+family11 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\family11.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+health11 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\health11.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+personality11 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\personality11.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+religion11 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\religion11.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+social11 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\social11.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+work11 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\work11.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+
+## combine the necessary variables from each df into one 'mentalhealth' df 
+mentalhealth11 <- merge(health11[, c("nomem_encr", "ch11e011", "ch11e012", 
+                                     "ch11e013", "ch11e014", "ch11e015")], 
+                        family11[, c("nomem_encr", "cf11d003", "cf11d024", 
+                        "cf11d030", "cf11d180")], by="nomem_encr") 
+mentalhealth11 <- merge(mentalhealth11[,], econom11[, c("nomem_encr", "ci11d006", 
+                                                        "ci11d007")], by="nomem_encr")
+mentalhealth11 <- merge(mentalhealth11[,], work11[, c("nomem_encr", "cw11d001", 
+                     "cw11d128", "cw11d129", "cw11d130", "cw11d131", "cw11d132", 
+                            "cw11d133", "cw11d003")], by="nomem_encr")
+mentalhealth11 <- merge(mentalhealth11[,], personality11[, c(1, 24:86)], 
+                        by="nomem_encr")
+mentalhealth11 <- merge(mentalhealth11[,], religion11[, c("nomem_encr", "cr11d012")],
+                        by="nomem_encr")
+mentalhealth11 <- merge(mentalhealth11[,], social11[, c("nomem_encr", "cs11d001", 
+                              "cs11d002", "cs11d283")], by="nomem_encr")
+
+## Health 
+## Reverse coding  and Computing means 
+recode.list_health11 <- c("ch11e013","ch11e015")
+mentalhealth11[recode.list_health11] <- 7 - mentalhealth11[recode.list_health11]  
+
+mentalhealth11$Mental_hlt <- rowMeans(mentalhealth11[, c(2:6)], na.rm = TRUE)
+
+## Age
+## Recode age into intervals
+mentalhealth11$Age <- recode(mentalhealth11$cw11d003, "16:20=1; 21:30=2; 
+                             31:40=3; 41:50=4; 51:60=5; 61:70=6; 71:80=7; 81:90=8;
+                             91:200=9")
+
+## Gender
+mentalhealth11$Gender <- mentalhealth11$cf11d003 
+
+## Marital status
+mentalhealth11$Marriage = ifelse(mentalhealth11$cf11d024 == 1 & mentalhealth11$cf11d030 == 1, 1, 
+                                 ifelse(mentalhealth11$cf11d024 == 1 & mentalhealth11$cf11d030 == 2, 2, 
+                                        ifelse(mentalhealth11$cf11d024 == 2, 3, 4)
+                                 )
+)
+
+## Marital satisfaction
+mentalhealth11$Marital_satisf <- ifelse(mentalhealth11$Marriage == 1 & mentalhealth11$cf11d180 <= 10,
+                                        mentalhealth11$cf11d180, 
+          ifelse(mentalhealth11$Marriage == 1 & is.na(mentalhealth11$cf11d180), 99,
+          ifelse(mentalhealth11$Marriage > 1 & is.na(mentalhealth11$cf11d180), 99, 99)))
+
+
+## Employment
+mentalhealth11$Job <- mentalhealth11$cw11d001 
+
+## Work satisfaction
+mentalhealth11$Job_satisf <- rowMeans(mentalhealth11[, c(14:19)], na.rm = TRUE)
+mentalhealth11$Job_satisf <- round(mentalhealth11$Job_satisf, digits = 2)
+mentalhealth11$Job_satisf <- ifelse(mentalhealth11$Job == 1, mentalhealth11$Job_satisf,
+                                    ifelse(is.na(mentalhealth11$Job_satisf), 99, 99))
+
+
+## Economic status satisfacion 
+mentalhealth11$Economic_satisf <- rowMeans(mentalhealth11[, c(11, 12)], na.rm = TRUE)
+
+## Social Integration
+mentalhealth11$Social <- mentalhealth11$cs11d283 
+
+## Leisure time 
+mentalhealth11$Leisure <- rowMeans(mentalhealth11[, c(85, 86)], na.rm = TRUE)
+
+## Religiosity
+mentalhealth11$Religion <- mentalhealth11$cr11d012 
+
+## Personality traits
+recode.list_personality11 <-c("cp11d021", "cp11d023", "cp11d025", "cp11d027",
+                              "cp11d029", "cp11d031", "cp11d033", "cp11d035", "cp11d037", 
+                              "cp11d039", "cp11d041", "cp11d043", "cp11d045", "cp11d047",
+                              "cp11d048", "cp11d049", "cp11d051", "cp11d053", "cp11d055",
+                              "cp11d057", "cp11d058", "cp11d063", "cp11d065", "cp11d068")
+
+mentalhealth11[recode.list_personality11] <- 6 - mentalhealth11[recode.list_personality11]
+
+
+mentalhealth11$Extraversion <- rowMeans(mentalhealth11[, c(21,26,31,36,41,46,51,56,
+                                                           61,66)], na.rm = TRUE)
+mentalhealth11$Agreeableness <- rowMeans(mentalhealth11[, c(22,27,32,37,42,47,52,57,
+                                                            62,67)], na.rm = TRUE)
+mentalhealth11$Conscientiousness <- rowMeans(mentalhealth11[, c(23,28,33,38,43,48,53,
+                                                                58,63,68)], na.rm = TRUE)
+mentalhealth11$Emotional_stab <- rowMeans(mentalhealth11[, c(24,29,34,39,44,49,54,59,
+                                                             64,69)], na.rm = TRUE)
+mentalhealth11$Openness <- rowMeans(mentalhealth11[, c(25,30,35,40,45,50,55,60,
+                                                       65,70)], na.rm = TRUE)
+
+## Self-esteem
+recode.list_esteem11 <- c("cp11d072","cp11d074", "cp11d077", "cp11d078", "cp11d079")
+
+mentalhealth11[recode.list_esteem11] <- 8 - mentalhealth11[recode.list_esteem11]  
+
+mentalhealth11$Self_esteem <- rowMeans(mentalhealth11[, c(71:83)], na.rm = TRUE)
+mentalhealth11$Self_esteem <- round(mentalhealth11$Self_esteem, digits = 2)
+
+
+## deleting unneccessary columns
+mentalhealth11 <- mentalhealth11[, -c(2:87)]
+
+##  creating file
+write.csv(mentalhealth11, file = "mentalhealth11.csv")
+
+
+
+
+## ----------------------------2012----------------------------------
+econom12 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\econom12.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+family12 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\family12.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+health12 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\health12.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+personality12 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\personality12.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+religion12 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\religion12.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+social12 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\social12.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+work12 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\work12.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+
+## combine the necessary variables from each df into one 'mentalhealth' df 
+mentalhealth12 <- merge(health12[, c("nomem_encr", "ch12f011", "ch12f012", 
+                                     "ch12f013", "ch12f014", "ch12f015")], 
+                        family12[, c("nomem_encr", "cf12e003", "cf12e024", 
+                        "cf12e030", "cf12e180")], by="nomem_encr") 
+mentalhealth12 <- merge(mentalhealth12[,], econom12[, c("nomem_encr", "ci12e006", 
+                                                        "ci12e007")], by="nomem_encr")
+mentalhealth12 <- merge(mentalhealth12[,], work12[, c("nomem_encr", "cw12e001", 
+                    "cw12e128", "cw12e129", "cw12e130", "cw12e131", "cw12e132", 
+                    "cw12e133", "cw12e003")], by="nomem_encr")
+mentalhealth12 <- merge(mentalhealth12[,], personality12[, c(1, 23:85)], 
+                        by="nomem_encr")
+mentalhealth12 <- merge(mentalhealth12[,], religion12[, c("nomem_encr", "cr12e012")],
+                        by="nomem_encr")
+mentalhealth12 <- merge(mentalhealth12[,], social12[, c("nomem_encr", "cs12e001", 
+                               "cs12e002", "cs12e283")], by="nomem_encr")
+
+## Health 
+## Reverse coding  and Computing means 
+recode.list_health12 <- c("ch12f013","ch12f015")
+mentalhealth12[recode.list_health12] <- 7 - mentalhealth12[recode.list_health12]  
+
+mentalhealth12$Mental_hlt <- rowMeans(mentalhealth12[, c(2:6)], na.rm = TRUE)
+
+## Age
+## Recode age into intervals
+mentalhealth12$Age <- recode(mentalhealth12$cw12e003, "16:20=1; 21:30=2; 
+                             31:40=3; 41:50=4; 51:60=5; 61:70=6; 71:80=7; 81:90=8;
+                             91:200=9")
+
+## Gender
+mentalhealth12$Gender <- mentalhealth12$cf12e003 
+
+## Marital status
+mentalhealth12$Marriage = ifelse(mentalhealth12$cf12e024 == 1 & mentalhealth12$cf12e030 == 1, 1, 
+                                 ifelse(mentalhealth12$cf12e024 == 1 & mentalhealth12$cf12e030 == 2, 2, 
+                                        ifelse(mentalhealth12$cf12e024 == 2, 3, 4)
+                                 )
+)
+
+## Marital satisfaction
+mentalhealth12$Marital_satisf <- ifelse(mentalhealth12$Marriage == 1 & mentalhealth12$cf12e180 <= 10,
+                                        mentalhealth12$cf12e180, 
+                 ifelse(mentalhealth12$Marriage == 1 & is.na(mentalhealth12$cf12e180), 99,
+                 ifelse(mentalhealth12$Marriage > 1 & is.na(mentalhealth12$cf12e180), 99, 99)))
+
+
+## Employment
+mentalhealth12$Job <- mentalhealth12$cw12e001 
+
+## Work satisfaction
+mentalhealth12$Job_satisf <- rowMeans(mentalhealth12[, c(14:19)], na.rm = TRUE)
+mentalhealth12$Job_satisf <- round(mentalhealth12$Job_satisf, digits = 2)
+mentalhealth12$Job_satisf <- ifelse(mentalhealth12$Job == 1, mentalhealth12$Job_satisf,
+                                    ifelse(is.na(mentalhealth12$Job_satisf), 99, 99))
+
+
+## Economic status satisfacion 
+mentalhealth12$Economic_satisf <- rowMeans(mentalhealth12[, c(11, 12)], na.rm = TRUE)
+
+## Social Integration
+mentalhealth12$Social <- mentalhealth12$cs12e283 
+
+## Leisure time 
+mentalhealth12$Leisure <- rowMeans(mentalhealth12[, c(85, 86)], na.rm = TRUE)
+
+## Religiosity
+mentalhealth12$Religion <- mentalhealth12$cr12e012 
+
+## Personality traits
+recode.list_personality12 <-c("cp12e021", "cp12e023", "cp12e025", "cp12e027",
+                              "cp12e029", "cp12e031", "cp12e033", "cp12e035", "cp12e037", 
+                              "cp12e039", "cp12e041", "cp12e043", "cp12e045", "cp12e047",
+                              "cp12e048", "cp12e049", "cp12e051", "cp12e053", "cp12e055",
+                              "cp12e057", "cp12e058", "cp12e063", "cp12e065", "cp12e068")
+
+mentalhealth12[recode.list_personality12] <- 6 - mentalhealth12[recode.list_personality12]
+
+
+mentalhealth12$Extraversion <- rowMeans(mentalhealth12[, c(21,26,31,36,41,46,51,56,
+                                                           61,66)], na.rm = TRUE)
+mentalhealth12$Agreeableness <- rowMeans(mentalhealth12[, c(22,27,32,37,42,47,52,57,
+                                                            62,67)], na.rm = TRUE)
+mentalhealth12$Conscientiousness <- rowMeans(mentalhealth12[, c(23,28,33,38,43,48,53,
+                                                                58,63,68)], na.rm = TRUE)
+mentalhealth12$Emotional_stab <- rowMeans(mentalhealth12[, c(24,29,34,39,44,49,54,59,
+                                                             64,69)], na.rm = TRUE)
+mentalhealth12$Openness <- rowMeans(mentalhealth12[, c(25,30,35,40,45,50,55,60,
+                                                       65,70)], na.rm = TRUE)
+
+## Self-esteem
+recode.list_esteem12 <- c("cp12e072","cp12e074", "cp12e077", "cp12e078", "cp12e079")
+
+mentalhealth12[recode.list_esteem12] <- 8 - mentalhealth12[recode.list_esteem12]  
+
+mentalhealth12$Self_esteem <- rowMeans(mentalhealth12[, c(71:83)], na.rm = TRUE)
+mentalhealth12$Self_esteem <- round(mentalhealth12$Self_esteem, digits = 2)
+
+
+## deleting unneccessary columns
+mentalhealth12 <- mentalhealth12[, -c(2:87)]
+
+##  creating file
+write.csv(mentalhealth12, file = "mentalhealth12.csv")
+
+
+
+## ----------------------------2013----------------------------------
+econom13 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\econom13.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+family13 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\family13.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+health13 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\health13.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+personality13 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\personality13.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+religion13 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\religion13.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+social13 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\social13.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+work13 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\work13.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+
+## combine the necessary variables from each df into one 'mentalhealth' df 
+mentalhealth13 <- merge(health13[, c("nomem_encr", "ch13g011", "ch13g012", 
+                                     "ch13g013", "ch13g014", "ch13g015")], 
+                        family13[, c("nomem_encr", "cf13f003", "cf13f024",
+                        "cf13f030", "cf13f180")], by="nomem_encr") 
+mentalhealth13 <- merge(mentalhealth13[,], econom13[, c("nomem_encr", "ci13f006", 
+                                                        "ci13f007")], by="nomem_encr")
+mentalhealth13 <- merge(mentalhealth13[,], work13[, c("nomem_encr", "cw13f001", 
+                       "cw13f128", "cw13f129", "cw13f130", "cw13f131", "cw13f132", 
+                       "cw13f133", "cw13f003")], by="nomem_encr")
+mentalhealth13 <- merge(mentalhealth13[,], personality13[, c(1, 25:87)], 
+                        by="nomem_encr")
+mentalhealth13 <- merge(mentalhealth13[,], religion13[, c("nomem_encr", "cr13f012")],
+                        by="nomem_encr")
+mentalhealth13 <- merge(mentalhealth13[,], social13[, c("nomem_encr", "cs13f001", 
+                                                        "cs13f002", "cs13f283")], by="nomem_encr")
+
+## Health 
+## Reverse coding  and Computing means 
+recode.list_health13 <- c("ch13g013","ch13g015")
+mentalhealth13[recode.list_health13] <- 7 - mentalhealth13[recode.list_health13]  
+
+mentalhealth13$Mental_hlt <- rowMeans(mentalhealth13[, c(2:6)], na.rm = TRUE)
+
+## Age
+## Recode age into intervals
+mentalhealth13$Age <- recode(mentalhealth13$cw13f003, "16:20=1; 21:30=2; 
+                             31:40=3; 41:50=4; 51:60=5; 61:70=6; 71:80=7; 81:90=8;
+                             91:200=9")
+
+## Gender
+mentalhealth13$Gender <- mentalhealth13$cf13f003 
+
+## Marital status
+mentalhealth13$Marriage = ifelse(mentalhealth13$cf13f024 == 1 & mentalhealth13$cf13f030 == 1, 1, 
+                                 ifelse(mentalhealth13$cf13f024 == 1 & mentalhealth13$cf13f030 == 2, 2, 
+                                        ifelse(mentalhealth13$cf13f024 == 2, 3, 4)
+                                 )
+)
+
+## Marital satisfaction
+mentalhealth13$Marital_satisf <- ifelse(mentalhealth13$Marriage == 1 & mentalhealth13$cf13f180 <= 10,
+                                        mentalhealth13$cf13f180, 
+                         ifelse(mentalhealth13$Marriage == 1 & is.na(mentalhealth13$cf13f180), 99,
+                         ifelse(mentalhealth13$Marriage > 1 & is.na(mentalhealth13$cf13f180), 99, 99)))
+
+
+## Employment
+mentalhealth13$Job <- mentalhealth13$cw13f001 
+
+## Work satisfaction
+mentalhealth13$Job_satisf <- rowMeans(mentalhealth13[, c(14:19)], na.rm = TRUE)
+mentalhealth13$Job_satisf <- round(mentalhealth13$Job_satisf, digits = 2)
+mentalhealth13$Job_satisf <- ifelse(mentalhealth13$Job == 1, mentalhealth13$Job_satisf,
+                                    ifelse(is.na(mentalhealth13$Job_satisf), 99, 99))
+
+
+## Economic status satisfacion 
+mentalhealth13$Economic_satisf <- rowMeans(mentalhealth13[, c(11, 12)], na.rm = TRUE)
+
+## Social Integration
+mentalhealth13$Social <- mentalhealth13$cs13f283 
+
+## Leisure time 
+mentalhealth13$Leisure <- rowMeans(mentalhealth13[, c(85, 86)], na.rm = TRUE)
+
+## Religiosity
+mentalhealth13$Religion <- mentalhealth13$cr13f012 
+
+## Personality traits
+recode.list_personality13 <-c("cp13f021", "cp13f023", "cp13f025", "cp13f027",
+                              "cp13f029", "cp13f031", "cp13f033", "cp13f035", "cp13f037", 
+                              "cp13f039", "cp13f041", "cp13f043", "cp13f045", "cp13f047",
+                              "cp13f048", "cp13f049", "cp13f051", "cp13f053", "cp13f055",
+                              "cp13f057", "cp13f058", "cp13f063", "cp13f065", "cp13f068")
+
+mentalhealth13[recode.list_personality13] <- 6 - mentalhealth13[recode.list_personality13]
+
+
+mentalhealth13$Extraversion <- rowMeans(mentalhealth13[, c(21,26,31,36,41,46,51,56,
+                                                           61,66)], na.rm = TRUE)
+mentalhealth13$Agreeableness <- rowMeans(mentalhealth13[, c(22,27,32,37,42,47,52,57,
+                                                            62,67)], na.rm = TRUE)
+mentalhealth13$Conscientiousness <- rowMeans(mentalhealth13[, c(23,28,33,38,43,48,53,
+                                                                58,63,68)], na.rm = TRUE)
+mentalhealth13$Emotional_stab <- rowMeans(mentalhealth13[, c(24,29,34,39,44,49,54,59,
+                                                             64,69)], na.rm = TRUE)
+mentalhealth13$Openness <- rowMeans(mentalhealth13[, c(25,30,35,40,45,50,55,60,
+                                                       65,70)], na.rm = TRUE)
+
+## Self-esteem
+recode.list_esteem13 <- c("cp13f072","cp13f074", "cp13f077", "cp13f078", "cp13f079")
+
+mentalhealth13[recode.list_esteem13] <- 8 - mentalhealth13[recode.list_esteem13]  
+
+mentalhealth13$Self_esteem <- rowMeans(mentalhealth13[, c(71:83)], na.rm = TRUE)
+mentalhealth13$Self_esteem <- round(mentalhealth13$Self_esteem, digits = 2)
+
+
+## deleting unneccessary columns
+mentalhealth13 <- mentalhealth13[, -c(2:87)]
+
+##  creating file
+write.csv(mentalhealth13, file = "mentalhealth13.csv")
+
+
+
+## ----------------------------2015----------------------------------
+econom15 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\econom15.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+family15 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\family15.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+health15 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\health15.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+personality15 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\personality15.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+religion15 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\religion15.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+social15 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\social15.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+work15 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\work15.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+
+## combine the necessary variables from each df into one 'mentalhealth' df 
+mentalhealth15 <- merge(health15[, c("nomem_encr", "ch15h011", "ch15h012", 
+                                     "ch15h013", "ch15h014", "ch15h015")], 
+                        family15[, c("nomem_encr", "cf15h003", "cf15h024", 
+                        "cf15h030", "cf15h180")], by="nomem_encr") 
+mentalhealth15 <- merge(mentalhealth15[,], econom15[, c("nomem_encr", "ci15h006", 
+                                                        "ci15h007")], by="nomem_encr")
+mentalhealth15 <- merge(mentalhealth15[,], work15[, c("nomem_encr", "cw15h001", 
+                     "cw15h128", "cw15h129", "cw15h130", "cw15h131", "cw15h132", 
+                                  "cw15h133", "cw15h003")], by="nomem_encr")
+mentalhealth15 <- merge(mentalhealth15[,], personality15[, c(1, 23:85)], 
+                        by="nomem_encr")
+mentalhealth15 <- merge(mentalhealth15[,], religion15[, c("nomem_encr", "cr15h012")],
+                        by="nomem_encr")
+mentalhealth15 <- merge(mentalhealth15[,], social15[, c("nomem_encr", "cs15h001", 
+                                                        "cs15h002", "cs15h283")], by="nomem_encr")
+
+## Health 
+## Reverse coding  and Computing means 
+recode.list_health15 <- c("ch15h013","ch15h015")
+mentalhealth15[recode.list_health15] <- 7 - mentalhealth15[recode.list_health15]  
+
+mentalhealth15$Mental_hlt <- rowMeans(mentalhealth15[, c(2:6)], na.rm = TRUE)
+
+## Age
+## Recode age into intervals
+mentalhealth15$Age <- recode(mentalhealth15$cw15h003, "16:20=1; 21:30=2; 
+                             31:40=3; 41:50=4; 51:60=5; 61:70=6; 71:80=7; 81:90=8;
+                             91:200=9")
+
+## Gender
+mentalhealth15$Gender <- mentalhealth15$cf15h003 
+
+## Marital status
+mentalhealth15$Marriage = ifelse(mentalhealth15$cf15h024 == 1 & mentalhealth15$cf15h030 == 1, 1, 
+                                 ifelse(mentalhealth15$cf15h024 == 1 & mentalhealth15$cf15h030 == 2, 2, 
+                                        ifelse(mentalhealth15$cf15h024 == 2, 3, 4)
+                                 )
+)
+
+## Marital satisfaction
+mentalhealth15$Marital_satisf <- ifelse(mentalhealth15$Marriage == 1 & mentalhealth15$cf15h180 <= 10,
+                                        mentalhealth15$cf15h180, 
+          ifelse(mentalhealth15$Marriage == 1 & is.na(mentalhealth15$cf15h180), 99,
+          ifelse(mentalhealth15$Marriage > 1 & is.na(mentalhealth15$cf15h180), 99, 99)))
+
+## Employment
+mentalhealth15$Job <- mentalhealth15$cw15h001 
+
+## Work satisfaction
+mentalhealth15$Job_satisf <- rowMeans(mentalhealth15[, c(14:19)], na.rm = TRUE)
+mentalhealth15$Job_satisf <- round(mentalhealth15$Job_satisf, digits = 2)
+mentalhealth15$Job_satisf <- ifelse(mentalhealth15$Job == 1, mentalhealth15$Job_satisf,
+                                    ifelse(is.na(mentalhealth15$Job_satisf), 99, 99))
+
+## Economic status satisfacion 
+mentalhealth15$Economic_satisf <- rowMeans(mentalhealth15[, c(11, 12)], na.rm = TRUE)
+
+## Social Integration
+mentalhealth15$Social <- mentalhealth15$cs15h283 
+
+## Leisure time 
+mentalhealth15$Leisure <- rowMeans(mentalhealth15[, c(85, 86)], na.rm = TRUE)
+
+## Religiosity
+mentalhealth15$Religion <- mentalhealth15$cr15h012 
+
+## Personality traits
+recode.list_personality15 <-c("cp15h021", "cp15h023", "cp15h025", "cp15h027",
+                              "cp15h029", "cp15h031", "cp15h033", "cp15h035", "cp15h037", 
+                              "cp15h039", "cp15h041", "cp15h043", "cp15h045", "cp15h047",
+                              "cp15h048", "cp15h049", "cp15h051", "cp15h053", "cp15h055",
+                              "cp15h057", "cp15h058", "cp15h063", "cp15h065", "cp15h068")
+
+mentalhealth15[recode.list_personality15] <- 6 - mentalhealth15[recode.list_personality15]
+
+
+mentalhealth15$Extraversion <- rowMeans(mentalhealth15[, c(21,26,31,36,41,46,51,56,
+                                                           61,66)], na.rm = TRUE)
+mentalhealth15$Agreeableness <- rowMeans(mentalhealth15[, c(22,27,32,37,42,47,52,57,
+                                                            62,67)], na.rm = TRUE)
+mentalhealth15$Conscientiousness <- rowMeans(mentalhealth15[, c(23,28,33,38,43,48,53,
+                                                                58,63,68)], na.rm = TRUE)
+mentalhealth15$Emotional_stab <- rowMeans(mentalhealth15[, c(24,29,34,39,44,49,54,59,
+                                                             64,69)], na.rm = TRUE)
+mentalhealth15$Openness <- rowMeans(mentalhealth15[, c(25,30,35,40,45,50,55,60,
+                                                       65,70)], na.rm = TRUE)
+
+## Self-esteem
+recode.list_esteem15 <- c("cp15h072","cp15h074", "cp15h077", "cp15h078", "cp15h079")
+
+mentalhealth15[recode.list_esteem15] <- 8 - mentalhealth15[recode.list_esteem15]  
+
+mentalhealth15$Self_esteem <- rowMeans(mentalhealth15[, c(71:83)], na.rm = TRUE)
+mentalhealth15$Self_esteem <- round(mentalhealth15$Self_esteem, digits = 2)
+
+
+## deleting unneccessary columns
+mentalhealth15 <- mentalhealth15[, -c(2:87)]
+
+##  creating file
+write.csv(mentalhealth15, file = "mentalhealth15.csv")
+
+## Dealing with missig values
+
+
+##2014
+mental14 = read.spss(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\input\\personality14.sav", 
+  use.value.labels = FALSE, to.data.frame=TRUE)
+
+
+mental14 <- mental14[, c(1, 22:84)]
+recode.list_mental14 <-c("cp14g021", "cp14g023", "cp14g025", "cp14g027",
+                              "cp14g029", "cp14g031", "cp14g033", "cp14g035", "cp14g037", 
+                              "cp14g039", "cp14g041", "cp14g043", "cp14g045", "cp14g047",
+                              "cp14g048", "cp14g049", "cp14g051", "cp14g053", "cp14g055",
+                              "cp14g057", "cp14g058", "cp14g063", "cp14g065", "cp14g068")
+
+mental14[recode.list_mental14] <- 6 - mental14[recode.list_mental14] 
+
+mental14$Extraversion <- rowMeans(mental14[, c(2,7,12,17,22,27,32,37,
+                                                           42,47)], na.rm = TRUE)
+mental14$Agreeableness <- rowMeans(mental14[, c(3,8,13,18,23,28,33,38,
+                                                            43,47)], na.rm = TRUE)
+mental14$Conscientiousness <- rowMeans(mental14[, c(4,9,14,19,24,29,34,
+                                                                39,44,49)], na.rm = TRUE)
+mental14$Emotional_stab <- rowMeans(mental14[, c(5,10,15,20,25,30,35,40,
+                                                             45,50)], na.rm = TRUE)
+mental14$Openness <- rowMeans(mental14[, c(6,11,16,21,26,31,36,41,
+                                                       46,51)], na.rm = TRUE)
+## Self-esteem
+recode.list_esteem14 <- c("cp14g072","cp14g074", "cp14g077", "cp14g078", "cp14g079")
+
+mental14[recode.list_esteem14] <- 8 - mental14[recode.list_esteem14]  
+
+mental14$Self_esteem <- rowMeans(mental14[, c(52:64)], na.rm = TRUE)
+mental14$Self_esteem <- round(mental14$Self_esteem, digits = 2)
+
+mental14 <- mental14[,- c(2:64)]
+write.csv(mental14, file = "mentalhealth14.csv")
+### compare
+
+
+mental08 <- read.csv(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\output\\mentalhealth08.csv")
+
+mental09 <- read.csv(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\output\\mentalhealth09.csv")
+
+mental10 <- read.csv(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\output\\mentalhealth10.csv")
+
+mental11 <- read.csv(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\output\\mentalhealth11.csv")
+
+mental12 <- read.csv(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\output\\mentalhealth12.csv")
+
+mental13 <- read.csv(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\output\\mentalhealth13.csv")
+
+mental15 <- read.csv(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\output\\mentalhealth15.csv")
+
+mental14 <- read.csv(
+  "C:\\Users\\Karolina\\Desktop\\MentalHealthAnalysis\\output\\mentalhealth14.csv")
+
+
+## means for 2010 -> mean(2009 + 2011)
+combo0911 <- full_join(mental09, mental11, by = "nomem_encr")
+combo0911$Extraversion10 <- rowMeans(combo0911[, c(14, 32)],  na.rm = TRUE)
+combo0911$Agreeableness10 <- rowMeans(combo0911[, c(15, 33)],  na.rm = TRUE)
+combo0911$Conscientiousness10 <- rowMeans(combo0911[, c(16, 34)],  na.rm = TRUE)
+combo0911$Emotional_stab10 <- rowMeans(combo0911[, c(17, 35)],  na.rm = TRUE)
+combo0911$Openness10 <- rowMeans(combo0911[, c(18, 36)],  na.rm = TRUE)
+combo0911$Self_esteem10 <- rowMeans(combo0911[, c(19, 37)],  na.rm = TRUE)
+
+temp10 <- right_join(combo0911, mental10, by = "nomem_encr")
+temp10$Extraversion <- rowMeans(temp10[, c(38, 55)], na.rm = TRUE) 
+temp10$Agreeableness <- rowMeans(temp10[, c(39, 56)], na.rm = TRUE)
+temp10$Conscientiousness <- rowMeans(temp10[, c(40, 57)], na.rm = TRUE)
+temp10$Emotional_stab <- rowMeans(temp10[, c(41, 58)], na.rm = TRUE)
+temp10$Openness <- rowMeans(temp10[, c(42, 59)], na.rm = TRUE)
+temp10$Self_esteem <- rowMeans(temp10[, c(43, 60)], na.rm = TRUE)
+
+mental10$Extraversion <- temp10$Extraversion
+mental10$Agreeableness <- temp10$Agreeableness
+mental10$Conscientiousness <- temp10$Conscientiousness
+mental10$Emotional_stab <- temp10$Emotional_stab
+mental10$Openness <- temp10$Openness
+mental10$Self_esteem <- temp10$Self_esteem
+
+mental10$Self_esteem <- round(mental10$Self_esteem, digits = 2)
+write.csv(mental10, file = "mentalhealth10.csv")
+
+## means for 2012 -> mean(2011 + 2013)
+combo1113 <- full_join(mental11, mental13, by = "nomem_encr")
+combo1113$Extraversion12 <- rowMeans(combo1113[, c(14, 32)],  na.rm = TRUE)
+combo1113$Agreeableness12 <- rowMeans(combo1113[, c(15, 33)],  na.rm = TRUE)
+combo1113$Conscientiousness12 <- rowMeans(combo1113[, c(16, 34)],  na.rm = TRUE)
+combo1113$Emotional_stab12 <- rowMeans(combo1113[, c(17, 35)],  na.rm = TRUE)
+combo1113$Openness12 <- rowMeans(combo1113[, c(18, 36)],  na.rm = TRUE)
+combo1113$Self_esteem12<- rowMeans(combo1113[, c(19, 37)],  na.rm = TRUE)
+
+temp12 <- right_join(combo1113, mental12, by = "nomem_encr")
+temp12$Extraversion <- rowMeans(temp12[, c(38, 56)], na.rm = TRUE) 
+temp12$Agreeableness <- rowMeans(temp12[, c(39, 57)], na.rm = TRUE)
+temp12$Conscientiousness <- rowMeans(temp12[, c(40, 58)], na.rm = TRUE)
+temp12$Emotional_stab <- rowMeans(temp12[, c(41, 59)], na.rm = TRUE)
+temp12$Openness <- rowMeans(temp12[, c(42, 60)], na.rm = TRUE)
+temp12$Self_esteem <- rowMeans(temp12[, c(43, 61)], na.rm = TRUE)
+
+mental12$Extraversion <- temp12$Extraversion
+mental12$Agreeableness <- temp12$Agreeableness
+mental12$Conscientiousness <- temp12$Conscientiousness
+mental12$Emotional_stab <- temp12$Emotional_stab
+mental12$Openness <- temp12$Openness
+mental12$Self_esteem <- temp12$Self_esteem
+
+mental12$Self_esteem <- round(mental12$Self_esteem, digits = 2)
+write.csv(mental12, file = "mentalhealth12.csv")
+
+
+## means for 2015 -> mean(2013 + 2014)
+combo1314 <- full_join(mental13, mental14, by = "nomem_encr")
+combo1314$Extraversion15 <- rowMeans(combo1314[, c(14, 21)],  na.rm = TRUE)
+combo1314$Agreeableness15 <- rowMeans(combo1314[, c(15, 22)],  na.rm = TRUE)
+combo1314$Conscientiousness15 <- rowMeans(combo1314[, c(23, 23)],  na.rm = TRUE)
+combo1314$Emotional_stab15 <- rowMeans(combo1314[, c(17, 24)],  na.rm = TRUE)
+combo1314$Openness15 <- rowMeans(combo1314[, c(18, 25)],  na.rm = TRUE)
+combo1314$Self_esteem15 <- rowMeans(combo1314[, c(19, 26)],  na.rm = TRUE)
+
+temp15 <- right_join(combo1314, mental15, by = "nomem_encr")
+temp15$Extraversion <- rowMeans(temp15[, c(27, 43)], na.rm = TRUE) 
+temp15$Agreeableness <- rowMeans(temp15[, c(28, 44)], na.rm = TRUE)
+temp15$Conscientiousness <- rowMeans(temp15[, c(29, 45)], na.rm = TRUE)
+temp15$Emotional_stab <- rowMeans(temp15[, c(30, 46)], na.rm = TRUE)
+temp15$Openness <- rowMeans(temp15[, c(31, 47)], na.rm = TRUE)
+temp15$Self_esteem <- rowMeans(temp15[, c(32, 48)], na.rm = TRUE)
+
+mental15$Extraversion <- temp15$Extraversion
+mental15$Agreeableness <- temp15$Agreeableness
+mental15$Conscientiousness <- temp15$Conscientiousness
+mental15$Emotional_stab <- temp15$Emotional_stab
+mental15$Openness <- temp15$Openness
+mental15$Self_esteem <- temp15$Self_esteem
+
+mental15$Self_esteem <- round(mental15$Self_esteem, digits = 2)
+write.csv(mental15, file = "mentalhealth15.csv")
+
+
+mental08_features = mental08
+mental08_features[, c(1,2)] <- NULL
+mental09_features = mental09
+mental09_features[, c(1,2)] <- NULL
+mental10_features = mental10
+mental10_features[, c(1:3)] <- NULL
+mental11_features = mental11
+mental11_features[, c(1,2)] <- NULL
+mental12_features = mental12
+mental12_features[, c(1:3)] <- NULL
+mental13_features = mental13
+mental13_features[, c(1,2)] <- NULL
+mental15_features = mental15
+mental15_features[, c(1:3)] <- NULL
+
+##2008 -> 4
+complete08 <- mental08_features[complete.cases(mental08_features),]
+wss <- (nrow(complete08)-1)*sum(apply(complete08,2,var))
+for (i in 2:15) wss[i] <- sum(kmeans(complete08,
+                                     centers=i)$withinss)
+plot(1:15, wss, type="b", xlab="Number of Clusters",
+     ylab="Within groups sum of squares",
+     main="Assessing the Optimal Number of Clusters with the Elbow Method",
+     pch=20, cex=2)
+
+## 2009 -> 6
+complete09 <- mental09_features[complete.cases(mental09_features),]
+wss <- (nrow(complete09)-1)*sum(apply(complete09,2,var))
+for (i in 2:15) wss[i] <- sum(kmeans(complete09,
+                                     centers=i)$withinss)
+plot(1:15, wss, type="b", xlab="Number of Clusters",
+     ylab="Within groups sum of squares",
+     main="Assessing the Optimal Number of Clusters with the Elbow Method",
+     pch=20, cex=2)
+
+## 2010 -> 4
+complete10 <- mental10_features[complete.cases(mental10_features),]
+wss <- (nrow(complete10)-1)*sum(apply(complete10,2,var))
+for (i in 2:15) wss[i] <- sum(kmeans(complete10,
+                                     centers=i)$withinss)
+plot(1:15, wss, type="b", xlab="Number of Clusters",
+     ylab="Within groups sum of squares",
+     main="Assessing the Optimal Number of Clusters with the Elbow Method",
+     pch=20, cex=2)
+
+## 2011 -> 5
+complete11 <- mental11_features[complete.cases(mental11_features),]
+wss <- (nrow(complete11)-1)*sum(apply(complete11,2,var))
+for (i in 2:15) wss[i] <- sum(kmeans(complete11,
+                                     centers=i)$withinss)
+plot(1:15, wss, type="b", xlab="Number of Clusters",
+     ylab="Within groups sum of squares",
+     main="Assessing the Optimal Number of Clusters with the Elbow Method",
+     pch=20, cex=2)
+
+## 2012 -> 6
+complete12 <- mental12_features[complete.cases(mental12_features),]
+wss <- (nrow(complete12)-1)*sum(apply(complete12,2,var))
+for (i in 2:15) wss[i] <- sum(kmeans(complete12,
+                                     centers=i)$withinss)
+plot(1:15, wss, type="b", xlab="Number of Clusters",
+     ylab="Within groups sum of squares",
+     main="Assessing the Optimal Number of Clusters with the Elbow Method",
+     pch=20, cex=2)
+
+## 2013 -> 4
+complete13 <- mental13_features[complete.cases(mental13_features),]
+wss <- (nrow(complete13)-1)*sum(apply(complete13,2,var))
+for (i in 2:15) wss[i] <- sum(kmeans(complete13,
+                                     centers=i)$withinss)
+plot(1:15, wss, type="b", xlab="Number of Clusters",
+     ylab="Within groups sum of squares",
+     main="Assessing the Optimal Number of Clusters with the Elbow Method",
+     pch=20, cex=2)
+
+## 2015 -> 5
+complete15 <- mental15_features[complete.cases(mental15_features),]
+wss <- (nrow(complete15)-1)*sum(apply(complete15,2,var))
+for (i in 2:15) wss[i] <- sum(kmeans(complete15,
+                                     centers=i)$withinss)
+plot(1:15, wss, type="b", xlab="Number of Clusters",
+     ylab="Within groups sum of squares",
+     main="Assessing the Optimal Number of Clusters with the Elbow Method",
+     pch=20, cex=2)
+
+
+## clustering
+clust08 = kmeans(complete08, 6)
+clust08
+windows() ## create window to plot the file
+plot(complete08, col =(clust08$cluster +1) , main="K-Means result with 6 clusters", pch=20, cex=2)
+dev.off()
