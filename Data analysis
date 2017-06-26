@@ -1149,5 +1149,5 @@ plot(1:15, wss, type="b", xlab="Number of Clusters",
 clust08 = kmeans(complete08, 6)
 clust08
 windows() ## create window to plot the file
-plot(complete08, col =(clust08$cluster +1) , main="K-Means result with 6 clusters", pch=20, cex=2)
+plot(complete08, col =(clust08$cluster +1) , main="K-Means result with 6 clusters")
 dev.off()
